@@ -1,0 +1,21 @@
+## Interface: 100206
+## Version: 2.1.0
+## Title: UpgradeClarity
+## Author: Caelryn-Stormrage
+## IconTexture: Interface\ICONS\inv_10_gearupgrade_aspectsawakenedcrest.blp
+## Notes: Adds additional upgrade track details to item tooltips.
+
+Localization/Init.lua
+Localization/locale.deDE.lua
+Localization/locale.enUS.lua
+Localization/locale.esES.lua
+Localization/locale.esMX.lua
+Localization/locale.frFR.lua
+Localization/locale.itIT.lua
+Localization/locale.koKR.lua
+Localization/locale.ptBR.lua
+Localization/locale.ruRU.lua
+Localization/locale.zhCN.lua
+Localization/locale.zhTW.lua
+
+UpgradeClarity.lua
