@@ -2,8 +2,8 @@ local _, namespace = ...
 local localizations = namespace.localizations
 
 -- Local References
-local floor, ipairs, pairs, rawset, select, setmetatable, strmatch, strgmatch, tconcat, tinsert, tonumber, type =
-      floor, ipairs, pairs, rawset, select, setmetatable, strmatch, string.gmatch, table.concat, tinsert, tonumber, type
+local floor, ipairs, pairs, rawset, select, setmetatable, strmatch, tconcat, tinsert, tonumber, type =
+      floor, ipairs, pairs, rawset, select, setmetatable, strmatch, table.concat, tinsert, tonumber, type
 
 local API_AddTooltipPostCall = TooltipDataProcessor.AddTooltipPostCall
 local API_CreateFrame = CreateFrame
