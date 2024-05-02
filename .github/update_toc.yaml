@@ -1,0 +1,29 @@
+name: Update TOC
+
+on:
+  schedule:
+    -
+      cron: 0 12 * * *
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      -
+        name: Clone Repository
+        uses: actions/checkout@v4
+      -
+        name: Update TOC
+        uses: p3lim/toc-interface-updater@v3
+        with:
+          flavor: retail
+      -
+        name: Create PR
+        uses: peter-evans/create-pull-request@v6
+        with:
+          title: Update TOC
+          commit-message: |
+            Update TOC
+            Automatic update of the TOC "Interface" version for retail.
+          branch: update-toc
+          delete-branch: true
