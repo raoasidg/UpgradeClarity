@@ -2,8 +2,8 @@ local _, namespace = ...
 local localizations = namespace.localizations
 
 -- Local References
-local floor, ipairs, pairs, rawset, select, setmetatable, strmatch, tconcat, tinsert, tonumber, type =
-      floor, ipairs, pairs, rawset, select, setmetatable, strmatch, table.concat, tinsert, tonumber, type
+local floor, ipairs, pairs, rawset, select, setmetatable, strlower, strmatch, tconcat, tinsert, tonumber, type =
+      floor, ipairs, pairs, rawset, select, setmetatable, strlower, strmatch, table.concat, tinsert, tonumber, type
 
 local API_AddTooltipPostCall = TooltipDataProcessor.AddTooltipPostCall
 local API_CreateFrame = CreateFrame
@@ -13,19 +13,7 @@ local API_GetDifficultyName = DifficultyUtil.GetDifficultyName
 local API_GetDisplayedItem = TooltipUtil.GetDisplayedItem
 local API_GetItemInfo = C_Item.GetItemInfo
 
-local DIFFICULTY_NAMES = {
-    DUNGEON = {
-        HEROIC = API_GetDifficultyName(DifficultyUtil.ID.DungeonHeroic),
-        MYTHIC = API_GetDifficultyName(DifficultyUtil.ID.DungeonMythic),
-        CHALLENGE = API_GetDifficultyName(DifficultyUtil.ID.DungeonChallenge), -- Mythic+
-    },
-    RAID = {
-        LFR = API_GetDifficultyName(DifficultyUtil.ID.PrimaryRaidLFR),
-        NORMAL = API_GetDifficultyName(DifficultyUtil.ID.PrimaryRaidNormal),
-        HEROIC = API_GetDifficultyName(DifficultyUtil.ID.PrimaryRaidHeroic),
-        MYTHIC = API_GetDifficultyName(DifficultyUtil.ID.PrimaryRaidMythic),
-    },
-}
+local DIFFICULTY_IDS = DifficultyUtil.ID
 local DUNGEONS, RAIDS = DUNGEONS, RAIDS
 local HEADER_COLON = HEADER_COLON
 local ITEM_QUALITY_COLORS = ITEM_QUALITY_COLORS
@@ -42,8 +30,36 @@ local BAND_SPACING = 3
 local BAND_ADJUSTMENT = 1
 
 -- Data Structures
--- Table containing mappings of the localized upgrade track names to the relevant indices.  Doing it this way because
--- I wanted to play with metamethods and the values are always sequentially incremented by the call order
+-- Table containing mappings of the names of dungeon and raid difficulties.  Doing it this way because I wanted to play
+-- with metamethods and to reduce duplicated calls to API_GetDifficultyName in code.
+local difficulty_names = setmetatable({
+    dungeon = {},
+    raid = {},
+}, {
+    __call = function(self, identifier)
+        local dungeon_type = strmatch(identifier, "^Dungeon(.+)")
+        local raid_type = strmatch(identifier, "^PrimaryRaid(.+)")
+        local location_type = dungeon_type and "dungeon" or raid_type and "raid"
+
+        if not location_type then return end
+
+        local difficulty_type = strlower(dungeon_type or raid_type)
+        self[location_type][difficulty_type] = API_GetDifficultyName(DIFFICULTY_IDS[identifier])
+    end,
+    __newindex = function()
+        error("Assignment error: \"difficulty_names\" cannot be directly assigned attributes.")
+    end,
+})
+difficulty_names("DungeonHeroic")
+difficulty_names("DungeonMythic")
+difficulty_names("DungeonChallenge") -- Mythic+
+difficulty_names("PrimaryRaidLFR")
+difficulty_names("PrimaryRaidNormal")
+difficulty_names("PrimaryRaidHeroic")
+difficulty_names("PrimaryRaidMythic")
+
+-- Table containing mappings of the localized upgrade track names to the relevant indices.   Doing it this way for the
+-- same reason as for difficulty_names (fun) and the values are always sequentially incremented by the call order
 -- (e.g. VETERAN = 3).
 local upgrade_mapping = setmetatable({}, {
     __call = function(self, upgrade_track_name)
@@ -135,58 +151,56 @@ local upgrade_tracks = {
 }
 
 -- Table containing data regarding upgrade track crest drop sources.
-local upgrade_crests = setmetatable(
-    {
-        [3] = { -- Whelpling
-            currency_id = 2806,
-            name = localizations.CREST_NAME_VETERAN,
-            sources = {
-                dungeon = {
-                    type = DIFFICULTY_NAMES.DUNGEON.HEROIC,
-                },
-                raid = DIFFICULTY_NAMES.RAID.LFR,
+local upgrade_crests = setmetatable({
+    [3] = { -- Whelpling
+        currency_id = 2806,
+        name = localizations.CREST_NAME_VETERAN,
+        sources = {
+            dungeon = {
+                type = difficulty_names.dungeon.heroic,
             },
+            raid = difficulty_names.raid.lfr,
         },
-        [4] = { -- Drake
-            currency_id = 2807,
-            name = localizations.CREST_NAME_CHAMPION,
-            sources = {
-                dungeon = {
-                    type = DIFFICULTY_NAMES.DUNGEON.MYTHIC,
-                },
-                raid = DIFFICULTY_NAMES.RAID.NORMAL,
+    },
+    [4] = { -- Drake
+        currency_id = 2807,
+        name = localizations.CREST_NAME_CHAMPION,
+        sources = {
+            dungeon = {
+                type = difficulty_names.dungeon.mythic,
             },
+            raid = difficulty_names.raid.normal,
         },
-        [5] = { -- Wyrm
-            currency_id = 2809,
-            name = localizations.CREST_NAME_HERO,
-            sources = {
-                dungeon = {
-                    levels = {2, 5},
-                },
-                raid = DIFFICULTY_NAMES.RAID.HEROIC,
+    },
+    [5] = { -- Wyrm
+        currency_id = 2809,
+        name = localizations.CREST_NAME_HERO,
+        sources = {
+            dungeon = {
+                levels = {2, 5},
             },
+            raid = difficulty_names.raid.heroic,
         },
-        [6] = { -- Aspect
-            currency_id = 2812,
-            name = localizations.CREST_NAME_MYTH,
-            sources = {
-                dungeon = {
-                    levels = {6, "+"},
-                },
-                raid = DIFFICULTY_NAMES.RAID.MYTHIC,
+    },
+    [6] = { -- Aspect
+        currency_id = 2812,
+        name = localizations.CREST_NAME_MYTH,
+        sources = {
+            dungeon = {
+                levels = {6, "+"},
             },
+            raid = difficulty_names.raid.mythic,
         },
-        __default = { -- Flightstones; catchall for anything referenced not in the table.
-            currency_id = 2245,
-            sources = {
-                other = localizations.DEFAULT_CURRENCY_SOURCE,
-            },
-        }
-    }, {
-        __index = function(self) return self.__default end,
+    },
+    __default = { -- Flightstones; catchall for anything referenced not in the table.
+        currency_id = 2245,
+        sources = {
+            other = localizations.DEFAULT_CURRENCY_SOURCE,
+        },
     }
-)
+}, {
+    __index = function(self) return self.__default end,
+})
 
 -- Data Functions
 -- Helper function to generate the crest source strings for the tooltip or item link.
@@ -245,7 +259,7 @@ local function build_crest_sources(upgrade_track, upgrade_level)
 
                 if crest_dungeon.levels then
                     local dungeon_levels = crest_dungeon.levels
-                    dungeon_string = dungeon_string..DIFFICULTY_NAMES.DUNGEON.CHALLENGE.." "..dungeon_levels[1]
+                    dungeon_string = dungeon_string..difficulty_names.dungeon.challenge.." "..dungeon_levels[1]
 
                     if type(dungeon_levels[2]) == "number" then
                         dungeon_string = dungeon_string.."-"..dungeon_levels[2]
