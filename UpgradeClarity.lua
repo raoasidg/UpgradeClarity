@@ -37,13 +37,13 @@ local difficulty_names = setmetatable({
     raid = {},
 }, {
     __call = function(self, identifier)
-        local dungeon_type = strmatch(identifier, "^Dungeon(.+)")
-        local raid_type = strmatch(identifier, "^PrimaryRaid(.+)")
-        local location_type = dungeon_type and "dungeon" or raid_type and "raid"
+        local difficulty_type_dungeon = strmatch(identifier, "^Dungeon(.+)")
+        local difficulty_type_raid = strmatch(identifier, "^PrimaryRaid(.+)")
+        local location_type = difficulty_type_dungeon and "dungeon" or difficulty_type_raid and "raid"
 
         if not location_type then return end
 
-        local difficulty_type = strlower(dungeon_type or raid_type)
+        local difficulty_type = strlower(difficulty_type_dungeon or difficulty_type_raid)
         self[location_type][difficulty_type] = API_GetDifficultyName(DIFFICULTY_IDS[identifier])
     end,
     __newindex = function()
