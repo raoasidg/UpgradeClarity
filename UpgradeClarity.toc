@@ -1,5 +1,5 @@
 ## Interface: 100207
-## Version: 2.1.0
+## Version: 2.1.1
 ## Title: UpgradeClarity
 ## Author: Caelryn-Stormrage
 ## IconTexture: Interface\ICONS\inv_10_gearupgrade_aspectsawakenedcrest.blp
