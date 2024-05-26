@@ -7,7 +7,8 @@ local floor, ipairs, pairs, rawset, select, setmetatable, strlower, strmatch, tc
 
 local API_AddTooltipPostCall = TooltipDataProcessor.AddTooltipPostCall
 local API_CreateFrame = CreateFrame
-local API_GameTooltip, API_ItemRefTooltip = GameTooltip, ItemRefTooltip
+local API_GameTooltip, API_ItemRefTooltip, API_ShoppingTooltip1, API_ShoppingTooltip2 =
+      GameTooltip, ItemRefTooltip, ShoppingTooltip1, ShoppingTooltip2
 local API_GetCurrencyInfo = C_CurrencyInfo.GetCurrencyInfo
 local API_GetDifficultyName = DifficultyUtil.GetDifficultyName
 local API_GetDisplayedItem = TooltipUtil.GetDisplayedItem
@@ -360,7 +361,14 @@ end
 
 -- Add upgrade track information to the bottom of item tooltips and links.
 local function tooltip_handler(tooltip, data)
-    if tooltip ~= API_GameTooltip and tooltip ~= API_ItemRefTooltip then return end
+    local function eq_sequence(compare, sequence)
+        for _, sequence_item in ipairs(sequence) do
+            if compare == sequence_item then return true end
+        end
+
+        return false
+    end
+    if not eq_sequence(tooltip, {API_GameTooltip, API_ItemRefTooltip, API_ShoppingTooltip1, API_ShoppingTooltip2}) then return end
 
     local item_link = select(2, API_GetDisplayedItem(tooltip))
     -- Catch an edge case where the handler has fired but the tooltip has not loaded the item yet.
