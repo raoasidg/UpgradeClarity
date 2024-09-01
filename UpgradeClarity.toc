@@ -1,8 +1,8 @@
 ## Interface: 110002
-## Version: 2.1.2
+## Version: 2.2
 ## Title: UpgradeClarity
-## Author: Caelryn-Stormrage
-## IconTexture: Interface\ICONS\inv_10_gearupgrade_aspectsawakenedcrest.blp
+## Author: raoasidg
+## IconTexture: Interface\ICONS\inv_crestupgrade_xalatath_gilded.blp
 ## Notes: Adds additional upgrade track details to item tooltips.
 
 Localization/Init.lua
