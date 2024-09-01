@@ -2,8 +2,10 @@ local _, namespace = ...
 local localizations = namespace.localizations
 
 -- Local References
-local floor, ipairs, pairs, rawset, select, setmetatable, strlower, strmatch, tconcat, tinsert, tonumber, type =
-      floor, ipairs, pairs, rawset, select, setmetatable, strlower, strmatch, table.concat, tinsert, tonumber, type
+local error, floor, ipairs, pairs, rawset, select, setmetatable,
+        strlower, strmatch, tconcat, tinsert, tonumber, type =
+      error, floor, ipairs, pairs, rawset, select, setmetatable,
+        strlower, strmatch, table.concat, tinsert, tonumber, type
 
 local API_AddTooltipPostCall = TooltipDataProcessor.AddTooltipPostCall
 local API_CreateFrame = CreateFrame
@@ -19,7 +21,7 @@ local DUNGEONS, RAIDS = DUNGEONS, RAIDS
 local HEADER_COLON = HEADER_COLON
 local ITEM_QUALITY_COLORS = ITEM_QUALITY_COLORS
 local ITEM_UPGRADE_TOOLTIP_FORMAT_STRING = ITEM_UPGRADE_TOOLTIP_FORMAT_STRING
-local RAID_CLASS_COLORS = RAID_CLASS_COLORS
+--local RAID_CLASS_COLORS = RAID_CLASS_COLORS
 local TOOLTIP_TYPE_ITEM = Enum.TooltipDataType.Item
 
 -- Upgrade Track Item Level Information
@@ -129,6 +131,7 @@ local upgrade_tracks = {
     [6] = { -- Myth
         color = ITEM_QUALITY_COLORS[6].hex,
     },
+--[[
     [7] = { -- Awakened; only relevant in Dragonflight Season 4.
         color = "|c"..RAID_CLASS_COLORS.PALADIN.colorStr,
         shared_tracks = {
@@ -149,12 +152,13 @@ local upgrade_tracks = {
             },
         },
     },
+]]
 }
 
--- Table containing data regarding upgrade track crest drop sources.
+-- Table containing data regarding upgrade track crest currency information and drop sources for the current expansion.
 local upgrade_crests = setmetatable({
-    [3] = { -- Whelpling
-        currency_id = 2806,
+    [3] = { -- Weathered
+        currency_id = 2914,
         name = localizations.CREST_NAME_VETERAN,
         sources = {
             dungeon = {
@@ -163,38 +167,39 @@ local upgrade_crests = setmetatable({
             raid = difficulty_names.raid.lfr,
         },
     },
-    [4] = { -- Drake
-        currency_id = 2807,
+    [4] = { -- Carved
+        currency_id = 2915,
         name = localizations.CREST_NAME_CHAMPION,
         sources = {
             dungeon = {
+                levels = {2, 3},
                 type = difficulty_names.dungeon.mythic,
             },
             raid = difficulty_names.raid.normal,
         },
     },
-    [5] = { -- Wyrm
-        currency_id = 2809,
+    [5] = { -- Runed
+        currency_id = 2916,
         name = localizations.CREST_NAME_HERO,
         sources = {
             dungeon = {
-                levels = {2, 5},
+                levels = {4, 8},
             },
             raid = difficulty_names.raid.heroic,
         },
     },
-    [6] = { -- Aspect
-        currency_id = 2812,
+    [6] = { -- Gilded
+        currency_id = 2917,
         name = localizations.CREST_NAME_MYTH,
         sources = {
             dungeon = {
-                levels = {6, "+"},
+                levels = {9, "+"},
             },
             raid = difficulty_names.raid.mythic,
         },
     },
-    __default = { -- Flightstones; catchall for anything referenced not in the table.
-        currency_id = 2245,
+    __default = { -- Valorstones; catchall for anything referenced not in the table.
+        currency_id = 3008,
         sources = {
             other = localizations.DEFAULT_CURRENCY_SOURCE,
         },
@@ -242,12 +247,20 @@ local function build_crest_sources(upgrade_track, upgrade_level)
             local currency_info = API_GetCurrencyInfo(crest_tuple[2].currency_id)
             local currency_name = crest_tuple[2].name or currency_info.name
 
-            tinsert(crest_tuple[1], "|cFFFFFFFF"..crest_tuple[4]..HEADER_COLON.."|r |T"..currency_info.iconFileID..":12:12:0:0:64:64:4:60:4:60|t"..crest_tuple[3].color..currency_name.."|r")
+            tinsert(
+                crest_tuple[1],
+                "|cFFFFFFFF"..crest_tuple[4]..HEADER_COLON.."|r |T"..currency_info.iconFileID
+                    ..":12:12:0:0:64:64:4:60:4:60|t"..crest_tuple[3].color..currency_name.."|r"
+            )
 
             local crest_sources = crest_tuple[2].sources
             if crest_sources.other then
                 tinsert(crest_tuple[1], crest_sources.other)
             end
+            -- Not sure if delves give any crests.  Temporary block.
+            --if crest_sources.delve then
+                -- DELVES_LABEL
+            --end
             if crest_sources.dungeon then
                 local crest_dungeon = crest_sources.dungeon
                 local dungeon_string = ""
@@ -259,6 +272,11 @@ local function build_crest_sources(upgrade_track, upgrade_level)
                 end
 
                 if crest_dungeon.levels then
+                    local dungeon_type = crest_dungeon.type
+                    if dungeon_type then
+                        dungeon_string = dungeon_string..dungeon_type..", "
+                    end
+
                     local dungeon_levels = crest_dungeon.levels
                     dungeon_string = dungeon_string..difficulty_names.dungeon.challenge.." "..dungeon_levels[1]
 
@@ -297,9 +315,12 @@ end
 
 -- Helper function to generate the upgrade track gear item levels string for the tooltip or item link.
 local function build_item_level_track(item_level, upgrade_track, upgrade_level, max_upgrade_level)
-    -- track_start_item_level = current item level MINUS total upgrade item levels MINUS the item level adjustment for
-    --                              the number of upgrade bands to the start of the upgrade track.
-    local track_start_item_level = item_level - ((upgrade_level - 1) * BAND_SPACING) - (floor((upgrade_level - 1) / BAND_COUNT) * BAND_ADJUSTMENT)
+    -- track_start_item_level = current item level
+    --      MINUS total upgrade item levels
+    --      MINUS the item level adjustment for the number of upgrade bands to the start of the upgrade track.
+    local track_start_item_level = item_level
+        - ((upgrade_level - 1) * BAND_SPACING)
+        - (floor((upgrade_level - 1) / BAND_COUNT) * BAND_ADJUSTMENT)
     local color = upgrade_level == 1 and ITEM_QUALITY_COLORS[7].hex or ITEM_QUALITY_COLORS[0].hex
 
     local track_item_levels = {color..track_start_item_level.."|r"}
@@ -354,7 +375,7 @@ local function get_upgrade_information(tooltip_lines)
 
         -- Found everything; exit.
         if upgrade_track and upgrade_level and max_upgrade_level then
-            return upgrade_mapping[upgrade_track], tonumber(upgrade_level), tonumber(max_upgrade_level)
+            return upgrade_mapping[upgrade_track], tonumber(upgrade_level), tonumber(max_upgrade_level), i
         end
     end
 end
@@ -368,19 +389,42 @@ local function tooltip_handler(tooltip, data)
 
         return false
     end
-    if not eq_sequence(tooltip, {API_GameTooltip, API_ItemRefTooltip, API_ShoppingTooltip1, API_ShoppingTooltip2}) then return end
+    if not eq_sequence(
+        tooltip,
+        {API_GameTooltip, API_ItemRefTooltip, API_ShoppingTooltip1, API_ShoppingTooltip2}
+    ) then return end
 
     local item_link = select(2, API_GetDisplayedItem(tooltip))
     -- Catch an edge case where the handler has fired but the tooltip has not loaded the item yet.
     if not item_link then return end
 
     local item_level = select(4, API_GetItemInfo(item_link))
-    local upgrade_track, upgrade_level, max_upgrade_level = get_upgrade_information(data.lines)
-    if not upgrade_track or not upgrade_level or not max_upgrade_level or upgrade_level == max_upgrade_level then return end
+    local upgrade_track, upgrade_level, max_upgrade_level, track_line_number = get_upgrade_information(data.lines)
+    if not upgrade_track
+        or not upgrade_level
+        or not max_upgrade_level
+        or upgrade_level == max_upgrade_level then return end
 
-    tooltip:AddLine("\n"..localizations.HEADER_UPGRADE_TRACK..HEADER_COLON)
-    tooltip:AddLine(build_item_level_track(item_level, upgrade_track, upgrade_level, max_upgrade_level))
+    if tooltip ~= GameTooltip then
+        -- Account for "Currently Equipped" in the item comparison tooltip(s).
+        track_line_number = track_line_number + 1
+    end
+
+    -- Experimenting with adding the upgrade tracks immediately below the upgrade line in the tooltip.  I will see how
+    -- this shakes out with feedback and possibly work on a better solution for adding a line arbitrarily in the tooltip
+    -- instead of just at the end.
+    local upgrade_line = _G[tooltip:GetName().."TextLeft"..track_line_number]
+    local upgrade_line_text = upgrade_line:GetText()
+    upgrade_line:SetText(
+        upgrade_line_text
+            .."|r|n    "..localizations.HEADER_UPGRADE_TRACK..HEADER_COLON.." "
+            ..build_item_level_track(item_level, upgrade_track, upgrade_level, max_upgrade_level)
+    )
+    tooltip:AddLine("\n"..localizations.HEADER_UPGRADE_CRESTS..HEADER_COLON)
+    --tooltip:AddLine(build_item_level_track(item_level, upgrade_track, upgrade_level, max_upgrade_level))
     tooltip:AddDoubleLine(build_crest_sources(upgrade_track, upgrade_level))
+
+    tooltip:Show()
 end
 
 -- Event Handling
