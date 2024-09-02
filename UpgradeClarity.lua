@@ -375,7 +375,7 @@ local function get_upgrade_information(tooltip_lines)
 
         -- Found everything; exit.
         if upgrade_track and upgrade_level and max_upgrade_level then
-            return upgrade_mapping[upgrade_track], tonumber(upgrade_level), tonumber(max_upgrade_level), i
+            return upgrade_mapping[upgrade_track], tonumber(upgrade_level), tonumber(max_upgrade_level)
         end
     end
 end
@@ -399,29 +399,14 @@ local function tooltip_handler(tooltip, data)
     if not item_link then return end
 
     local item_level = select(4, API_GetItemInfo(item_link))
-    local upgrade_track, upgrade_level, max_upgrade_level, track_line_number = get_upgrade_information(data.lines)
+    local upgrade_track, upgrade_level, max_upgrade_level = get_upgrade_information(data.lines)
     if not upgrade_track
         or not upgrade_level
         or not max_upgrade_level
         or upgrade_level == max_upgrade_level then return end
 
-    if tooltip ~= GameTooltip then
-        -- Account for "Currently Equipped" in the item comparison tooltip(s).
-        track_line_number = track_line_number + 1
-    end
-
-    -- Experimenting with adding the upgrade tracks immediately below the upgrade line in the tooltip.  I will see how
-    -- this shakes out with feedback and possibly work on a better solution for adding a line arbitrarily in the tooltip
-    -- instead of just at the end.
-    local upgrade_line = _G[tooltip:GetName().."TextLeft"..track_line_number]
-    local upgrade_line_text = upgrade_line:GetText()
-    upgrade_line:SetText(
-        upgrade_line_text
-            .."|r|n    "..localizations.HEADER_UPGRADE_TRACK..HEADER_COLON.." "
-            ..build_item_level_track(item_level, upgrade_track, upgrade_level, max_upgrade_level)
-    )
     tooltip:AddLine("\n"..localizations.HEADER_UPGRADE_CRESTS..HEADER_COLON)
-    --tooltip:AddLine(build_item_level_track(item_level, upgrade_track, upgrade_level, max_upgrade_level))
+    tooltip:AddLine(build_item_level_track(item_level, upgrade_track, upgrade_level, max_upgrade_level))
     tooltip:AddDoubleLine(build_crest_sources(upgrade_track, upgrade_level))
 
     tooltip:Show()
