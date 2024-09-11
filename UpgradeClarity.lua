@@ -308,6 +308,8 @@ local function build_crest_sources(upgrade_track, upgrade_level)
 
                 tinsert(crest_tuple[1], raid_string..crest_sources.raid)
             end
+            -- This is largely the same logic as the dungeon information, but restating it allows for easier
+            -- modification in the future if necessary.
             if crest_sources.delve then
                 local crest_delve = crest_sources.delve
                 local delve_string = ""
@@ -338,8 +340,13 @@ local function build_crest_sources(upgrade_track, upgrade_level)
 
     -- The current track's crest information needs to have at least the same number of lines as the next track's crest
     -- information.  Otherwise, the tooltip formatting will be off.
-    for i = #current_track_upgrade_sources, #next_track_upgrade_sources do
+    while #current_track_upgrade_sources < #next_track_upgrade_sources do
         tinsert(current_track_upgrade_sources, "")
+    end
+    -- The next track's crest information needs to have at least one more line over the number of lines as the current
+    -- track's crest information.  Otherwise, the tooltip formatting will be off.
+    while #next_track_upgrade_sources <= #current_track_upgrade_sources do
+        tinsert(next_track_upgrade_sources, "")
     end
 
     return tconcat(current_track_upgrade_sources, "\n"), tconcat(next_track_upgrade_sources, "\n")
