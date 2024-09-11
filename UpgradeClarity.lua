@@ -17,7 +17,8 @@ local API_GetDisplayedItem = TooltipUtil.GetDisplayedItem
 local API_GetItemInfo = C_Item.GetItemInfo
 
 local DIFFICULTY_IDS = DifficultyUtil.ID
-local DUNGEONS, RAIDS = DUNGEONS, RAIDS
+local DELVES, DUNGEONS, RAIDS = DELVES_LABEL, DUNGEONS, RAIDS
+local GARRISON_TIER = GARRISON_TIER
 local HEADER_COLON = HEADER_COLON
 local ITEM_QUALITY_COLORS = ITEM_QUALITY_COLORS
 local ITEM_UPGRADE_TOOLTIP_FORMAT_STRING = ITEM_UPGRADE_TOOLTIP_FORMAT_STRING
@@ -161,6 +162,9 @@ local upgrade_crests = setmetatable({
         currency_id = 2914,
         name = localizations.CREST_NAME_VETERAN,
         sources = {
+            delve = {
+                levels = {1, 5},
+            },
             dungeon = {
                 type = difficulty_names.dungeon.heroic,
             },
@@ -171,6 +175,9 @@ local upgrade_crests = setmetatable({
         currency_id = 2915,
         name = localizations.CREST_NAME_CHAMPION,
         sources = {
+            delve = {
+                levels = {6, 7},
+            },
             dungeon = {
                 levels = {2, 3},
                 type = difficulty_names.dungeon.mythic,
@@ -182,6 +189,9 @@ local upgrade_crests = setmetatable({
         currency_id = 2916,
         name = localizations.CREST_NAME_HERO,
         sources = {
+            delve = {
+                levels = {8, "+"},
+            },
             dungeon = {
                 levels = {4, 8},
             },
@@ -234,7 +244,7 @@ local function build_crest_sources(upgrade_track, upgrade_level)
 
     local current_track_upgrade_sources = {}
     local next_track_upgrade_sources = {}
-    local set_header_dungeon, set_header_raid = false, false
+    local set_header_delve, set_header_dungeon, set_header_raid = false, false, false
     -- Loop over a table of tuples that contain the relevant data elements to avoid code duplication.
     for i, crest_tuple in ipairs({
         {current_track_upgrade_sources, current_upgrade_crest, current_upgrade_track, localizations.HEADER_CREST_CURRENT},
@@ -257,10 +267,6 @@ local function build_crest_sources(upgrade_track, upgrade_level)
             if crest_sources.other then
                 tinsert(crest_tuple[1], crest_sources.other)
             end
-            -- Not sure if delves give any crests.  Temporary block.
-            --if crest_sources.delve then
-                -- DELVES_LABEL
-            --end
             if crest_sources.dungeon then
                 local crest_dungeon = crest_sources.dungeon
                 local dungeon_string = ""
@@ -283,7 +289,7 @@ local function build_crest_sources(upgrade_track, upgrade_level)
                     if type(dungeon_levels[2]) == "number" then
                         dungeon_string = dungeon_string.."-"..dungeon_levels[2]
                     else
-                        dungeon_string = dungeon_string.." "..localizations.CHALLENGE_DUNGEON_AND_ABOVE
+                        dungeon_string = dungeon_string.." "..localizations.SOURCE_AND_ABOVE
                     end
                 else
                     dungeon_string = dungeon_string..crest_dungeon.type
@@ -299,7 +305,33 @@ local function build_crest_sources(upgrade_track, upgrade_level)
 
                     set_header_raid = true
                 end
+
                 tinsert(crest_tuple[1], raid_string..crest_sources.raid)
+            end
+            if crest_sources.delve then
+                local crest_delve = crest_sources.delve
+                local delve_string = ""
+
+                if not set_header_delve then
+                    delve_string = "|cFFFFFFFF"..DELVES..HEADER_COLON.."|r "
+
+                    set_header_delve = true
+                end
+
+                if crest_delve.levels then
+                    local delve_levels = crest_delve.levels
+                    -- GARRISON_TIER is the only global string I found that was "Tier" alone.  The localization context
+                    -- should be alright I think.
+                    delve_string = delve_string..GARRISON_TIER.." "..delve_levels[1]
+
+                    if type(delve_levels[2]) == "number" then
+                        delve_string = delve_string.."-"..delve_levels[2]
+                    else
+                        delve_string = delve_string.." "..localizations.SOURCE_AND_ABOVE
+                    end
+                end
+
+                tinsert(crest_tuple[1], delve_string)
             end
         until true
     end
