@@ -33,6 +33,9 @@ local BAND_COUNT = 4
 local BAND_SPACING = 3
 local BAND_ADJUSTMENT = 1
 
+local UPGRADE_COST_CRESTS_ALL = 15
+local UPGRADE_ILEVEL_LOWER_LIMIT = 558 -- Explorer 1/8
+
 -- Data Structures
 -- Table containing mappings of the names of dungeon and raid difficulties.  Doing it this way because I wanted to play
 -- with metamethods and to reduce duplicated calls to API_GetDifficultyName in code.
@@ -254,13 +257,23 @@ local function build_crest_sources(upgrade_track, upgrade_level)
         repeat
             if not crest_tuple[2] then break end
 
-            local currency_info = API_GetCurrencyInfo(crest_tuple[2].currency_id)
+            local currency_id = crest_tuple[2].currency_id
+            local currency_info = API_GetCurrencyInfo(currency_id)
             local currency_name = crest_tuple[2].name or currency_info.name
+            local currency_qantity = currency_info.quantity
+
+            -- Be helpful and calculate the number of upgrades that can be done based off the number of crests the
+            -- player currently owns.  Ignore the "everything" currency as those costs vary per slot and may also be
+            -- discounted.
+            local num_upgrades_available = currency_id ~= upgrade_crests.__default.currency_id
+                and " "..ITEM_QUALITY_COLORS[7].hex.."("..floor(currency_qantity / UPGRADE_COST_CRESTS_ALL)..")|r"
+                or ""
 
             tinsert(
                 crest_tuple[1],
                 "|cFFFFFFFF"..crest_tuple[4]..HEADER_COLON.."|r |T"..currency_info.iconFileID
-                    ..":12:12:0:0:64:64:4:60:4:60|t"..crest_tuple[3].color..currency_name.."|r"
+                    ..":12:12:0:0:64:64:4:60:4:60|t"..crest_tuple[3].color..currency_name
+                    ..num_upgrades_available.."|r"
             )
 
             local crest_sources = crest_tuple[2].sources
@@ -401,12 +414,6 @@ local function get_upgrade_information(tooltip_lines)
     for i, tooltip_line in ipairs(tooltip_lines) do
         tooltip_line = tooltip_line.leftText
 
-        -- Current behavior in the game is for previous season items (which are no longer reasonably upgradeable) to
-        -- have a specific tooltip line denoting the originating season.  This is not present on current season items.
-        -- Currently just checking the color of that specific line to save investigative effort; this is bound to break
-        -- at some point.
-        if i == 2 and strmatch(tooltip_line, "^|cFF808080") then return end
-
         if not upgrade_track or not upgrade_level or not max_upgrade_level then
             local upgrade_string_pattern = ITEM_UPGRADE_TOOLTIP_FORMAT_STRING:gsub("%%s", "(.+)"):gsub("%%d", "(%%d+)")
             upgrade_track, upgrade_level, max_upgrade_level = strmatch(tooltip_line, upgrade_string_pattern)
@@ -438,6 +445,10 @@ local function tooltip_handler(tooltip, data)
     if not item_link then return end
 
     local item_level = select(4, API_GetItemInfo(item_link))
+    -- Exit if the item level does not exist or is lower than the limit that is relevant for upgrades for the current
+    -- season.
+    if not item_level or item_level < UPGRADE_ILEVEL_LOWER_LIMIT then return end
+
     local upgrade_track, upgrade_level, max_upgrade_level = get_upgrade_information(data.lines)
     if not upgrade_track
         or not upgrade_level
