@@ -11,6 +11,7 @@ local API_AddTooltipPostCall = TooltipDataProcessor.AddTooltipPostCall
 local API_CreateFrame = CreateFrame
 local API_GameTooltip, API_ItemRefTooltip, API_ShoppingTooltip1, API_ShoppingTooltip2 =
       GameTooltip, ItemRefTooltip, ShoppingTooltip1, ShoppingTooltip2
+local API_GetAchievementInfo = GetAchievementInfo
 local API_GetCurrencyInfo = C_CurrencyInfo.GetCurrencyInfo
 local API_GetDifficultyName = DifficultyUtil.GetDifficultyName
 local API_GetDisplayedItem = TooltipUtil.GetDisplayedItem
@@ -25,6 +26,33 @@ local ITEM_UPGRADE_TOOLTIP_FORMAT_STRING = ITEM_UPGRADE_TOOLTIP_FORMAT_STRING
 --local RAID_CLASS_COLORS = RAID_CLASS_COLORS
 local TOOLTIP_TYPE_ITEM = Enum.TooltipDataType.Item
 
+-- Upgrade Cost Information
+-- Relevant upgrade crest cost information along with contextual upgrade information for the current expansion season.
+local UPGRADE_COST_CRESTS_ALL = 15
+local UPGRADE_ILEVEL_LOWER_LIMIT = 558 -- Explorer 1/8
+local UPGRADE_SEASON_INFO = {
+    [0] = { -- Default Stones
+        currency_id = 3008,
+    },
+    [1] = { -- Veteran Crests
+        achievement_id = 40107,
+        currency_id = 2914,
+    },
+    [2] = { -- Champion Crests
+        achievement_id = 40115,
+        currency_id = 2915,
+    },
+    [3] = { -- Hero Crests
+        achievement_id = 40118,
+        currency_id = 2916,
+    },
+    [4] = { -- Myth Crests
+        achievement_id = 40393,
+        currency_id = 2917,
+    },
+}
+local UPGRADE_WARBAND_CREST_DISCOUNT = (1 / 3)
+
 -- Upgrade Track Item Level Information
 -- Every upgrade track has bands of BAND_COUNT item levels that are evenly spaced by BAND_SPACING levels.  It is
 -- necessary to add/subtract BAND_ADJUSTMENT from neighboring band item levels for every subsequent band away from the
@@ -33,12 +61,8 @@ local BAND_COUNT = 4
 local BAND_SPACING = 3
 local BAND_ADJUSTMENT = 1
 
-local UPGRADE_COST_CRESTS_ALL = 15
-local UPGRADE_ILEVEL_LOWER_LIMIT = 558 -- Explorer 1/8
-
 -- Data Structures
--- Table containing mappings of the names of dungeon and raid difficulties.  Doing it this way because I wanted to play
--- with metamethods and to reduce duplicated calls to API_GetDifficultyName in code.
+-- Table containing mappings of the names of dungeon and raid difficulties.
 local difficulty_names = setmetatable({
     dungeon = {},
     raid = {},
@@ -65,12 +89,14 @@ difficulty_names("PrimaryRaidNormal")
 difficulty_names("PrimaryRaidHeroic")
 difficulty_names("PrimaryRaidMythic")
 
--- Table containing mappings of the localized upgrade track names to the relevant indices.   Doing it this way for the
--- same reason as for difficulty_names (fun) and the values are always sequentially incremented by the call order
--- (e.g. VETERAN = 3).
-local upgrade_mapping = setmetatable({}, {
+-- Table containing mappings of the localized upgrade track names to the relevant indices.   The values are always
+-- sequentially incremented by the call order (e.g. VETERAN = 3).
+local upgrade_mapping = setmetatable({
+    __length = 0,
+}, {
     __call = function(self, upgrade_track_name)
-        rawset(self, "__length", (self.__length or 0) + 1)
+        self.__length = self.__length + 1
+
         rawset(self, localizations[upgrade_track_name], self.__length)
     end,
     __newindex = function()
@@ -159,10 +185,11 @@ local upgrade_tracks = {
 ]]
 }
 
--- Table containing data regarding upgrade track crest currency information and drop sources for the current expansion.
+-- Table containing data regarding upgrade track crest currency information and drop sources for the current expansion
+-- and season.
 local upgrade_crests = setmetatable({
-    [3] = { -- Weathered
-        currency_id = 2914,
+    [3] = { -- Veteran Crests
+        currency_id = UPGRADE_SEASON_INFO[1].currency_id,
         name = localizations.CREST_NAME_VETERAN,
         sources = {
             delve = {
@@ -174,8 +201,8 @@ local upgrade_crests = setmetatable({
             raid = difficulty_names.raid.lfr,
         },
     },
-    [4] = { -- Carved
-        currency_id = 2915,
+    [4] = { -- Champion Crests
+        currency_id = UPGRADE_SEASON_INFO[2].currency_id,
         name = localizations.CREST_NAME_CHAMPION,
         sources = {
             delve = {
@@ -188,8 +215,8 @@ local upgrade_crests = setmetatable({
             raid = difficulty_names.raid.normal,
         },
     },
-    [5] = { -- Runed
-        currency_id = 2916,
+    [5] = { -- Hero Crests
+        currency_id = UPGRADE_SEASON_INFO[3].currency_id,
         name = localizations.CREST_NAME_HERO,
         sources = {
             delve = {
@@ -201,8 +228,8 @@ local upgrade_crests = setmetatable({
             raid = difficulty_names.raid.heroic,
         },
     },
-    [6] = { -- Gilded
-        currency_id = 2917,
+    [6] = { -- Myth Crests
+        currency_id = UPGRADE_SEASON_INFO[4].currency_id,
         name = localizations.CREST_NAME_MYTH,
         sources = {
             dungeon = {
@@ -211,8 +238,8 @@ local upgrade_crests = setmetatable({
             raid = difficulty_names.raid.mythic,
         },
     },
-    __default = { -- Valorstones; catchall for anything referenced not in the table.
-        currency_id = 3008,
+    __default = { -- Default Stones; catchall for anything referenced not in the table.
+        currency_id = UPGRADE_SEASON_INFO[0].currency_id,
         sources = {
             other = localizations.DEFAULT_CURRENCY_SOURCE,
         },
@@ -221,9 +248,146 @@ local upgrade_crests = setmetatable({
     __index = function(self) return self.__default end,
 })
 
+-- Table containing mappings for the relevant season achievement IDs that indicate a warband character has activated the
+-- relevant upgrade crest discount.
+local warband_crest_discount = setmetatable({
+    [UPGRADE_SEASON_INFO[1].achievement_id] = UPGRADE_SEASON_INFO[1].currency_id,
+    [UPGRADE_SEASON_INFO[2].achievement_id] = UPGRADE_SEASON_INFO[2].currency_id,
+    [UPGRADE_SEASON_INFO[3].achievement_id] = UPGRADE_SEASON_INFO[3].currency_id,
+    [UPGRADE_SEASON_INFO[4].achievement_id] = UPGRADE_SEASON_INFO[4].currency_id,
+}, {
+    __call = function(self, achievement_id)
+        local warband_discount, _, _, _, _, _, _, _, _, deprecated_discount =
+            select(4, API_GetAchievementInfo(achievement_id))
+        local currency_id = self[achievement_id]
+
+        rawset(self, currency_id, {
+            deprecated_discount = deprecated_discount,
+            warband_discount = warband_discount,
+        })
+
+        self[achievement_id] = nil
+    end,
+    __newindex = function()
+        error("Assignment error: \"warband_crest_discount\" cannot be directly assigned attributes.")
+    end
+})
+
 -- Data Functions
--- Helper function to generate the crest source strings for the tooltip or item link.
-local function build_crest_sources(upgrade_track, upgrade_level)
+-- Helper function to actually build the crest sources section of the tooltip.
+local function build_crest_sources(upgrade_crest, upgrade_track, heading, sub_headings_set)
+    local upgrade_sources = {}
+
+    if not upgrade_crest then return upgrade_sources end
+
+    if warband_crest_discount[upgrade_crest.currency_id].deprecated_discount then
+        upgrade_crest = upgrade_crests.__default
+    end
+
+    local currency_id = upgrade_crest.currency_id
+    local currency_info = API_GetCurrencyInfo(currency_id)
+
+    -- Be helpful and calculate the number of upgrades that can be done based off the number of crests the
+    -- player currently owns taking into account the warband crest discount.  Ignore the default currency as
+    -- those costs vary per slot with a warband discount and a per character discount that is not easily
+    -- trackable.
+    local num_upgrades_available = ""
+    if currency_id ~= upgrade_crests.__default.currency_id then
+        local cost_with_discount = floor(UPGRADE_COST_CRESTS_ALL * (
+            warband_crest_discount[currency_id].warband_discount
+                and (1 - UPGRADE_WARBAND_CREST_DISCOUNT)
+                or 1
+        ) + 0.5)
+
+        num_upgrades_available = " "..ITEM_QUALITY_COLORS[7].hex.."("
+            ..floor(currency_info.quantity / cost_with_discount)..")|r"
+    end
+
+    tinsert(
+        upgrade_sources,
+        "|cFFFFFFFF"..heading..HEADER_COLON.."|r |T"..currency_info.iconFileID
+            ..":12:12:0:0:64:64:4:60:4:60|t"..upgrade_track.color..(upgrade_crest.name or currency_info.name)
+            ..num_upgrades_available.."|r"
+    )
+
+    local crest_sources = upgrade_crest.sources
+    if crest_sources.other then
+        tinsert(upgrade_sources, crest_sources.other)
+    end
+    if crest_sources.dungeon then
+        local crest_dungeon = crest_sources.dungeon
+        local dungeon_string = ""
+
+        if not sub_headings_set.dungeon then
+            dungeon_string = "|cFFFFFFFF"..DUNGEONS..HEADER_COLON.."|r "
+
+            sub_headings_set.dungeon = true
+        end
+
+        if crest_dungeon.levels then
+            local dungeon_type = crest_dungeon.type
+            if dungeon_type then
+                dungeon_string = dungeon_string..dungeon_type..", "
+            end
+
+            local dungeon_levels = crest_dungeon.levels
+            dungeon_string = dungeon_string..difficulty_names.dungeon.challenge.." "..dungeon_levels[1]
+
+            if type(dungeon_levels[2]) == "number" then
+                dungeon_string = dungeon_string.."-"..dungeon_levels[2]
+            else
+                dungeon_string = dungeon_string.." "..localizations.SOURCE_AND_ABOVE
+            end
+        else
+            dungeon_string = dungeon_string..crest_dungeon.type
+        end
+
+        tinsert(upgrade_sources, dungeon_string)
+    end
+    if crest_sources.raid then
+        local raid_string = ""
+
+        if not sub_headings_set.raid then
+            raid_string = "|cFFFFFFFF"..RAIDS..HEADER_COLON.."|r "
+
+            sub_headings_set.raid = true
+        end
+
+        tinsert(upgrade_sources, raid_string..crest_sources.raid)
+    end
+    -- This is largely the same logic as the dungeon information, but restating it allows for easier
+    -- modification in the future if necessary.
+    if crest_sources.delve then
+        local crest_delve = crest_sources.delve
+        local delve_string = ""
+
+        if not sub_headings_set.delve then
+            delve_string = "|cFFFFFFFF"..DELVES..HEADER_COLON.."|r "
+
+            sub_headings_set.delve = true
+        end
+
+        if crest_delve.levels then
+            local delve_levels = crest_delve.levels
+            -- GARRISON_TIER is the only global string I found that was "Tier" alone.  The localization context
+            -- should be alright I think.
+            delve_string = delve_string..GARRISON_TIER.." "..delve_levels[1]
+
+            if type(delve_levels[2]) == "number" then
+                delve_string = delve_string.."-"..delve_levels[2]
+            else
+                delve_string = delve_string.." "..localizations.SOURCE_AND_ABOVE
+            end
+        end
+
+        tinsert(upgrade_sources, delve_string)
+    end
+
+    return upgrade_sources
+end
+
+-- Helper function to handle generating the crest source strings for the tooltip or item link.
+local function build_crest_sources_handler(upgrade_track, upgrade_level)
     local current_upgrade_track = upgrade_tracks[upgrade_track]
     local current_upgrade_crest = upgrade_crests[upgrade_track]
     local next_upgrade_crest, next_upgrade_track
@@ -245,111 +409,17 @@ local function build_crest_sources(upgrade_track, upgrade_level)
         until true
     end
 
-    local current_track_upgrade_sources = {}
-    local next_track_upgrade_sources = {}
-    local set_header_delve, set_header_dungeon, set_header_raid = false, false, false
-    -- Loop over a table of tuples that contain the relevant data elements to avoid code duplication.
-    for i, crest_tuple in ipairs({
-        {current_track_upgrade_sources, current_upgrade_crest, current_upgrade_track, localizations.HEADER_CREST_CURRENT},
-        {next_track_upgrade_sources, next_upgrade_crest, next_upgrade_track, localizations.HEADER_CREST_NEXT},
-    }) do
-        -- Another 'continue' implementation.
-        repeat
-            if not crest_tuple[2] then break end
-
-            local currency_id = crest_tuple[2].currency_id
-            local currency_info = API_GetCurrencyInfo(currency_id)
-            local currency_name = crest_tuple[2].name or currency_info.name
-            local currency_qantity = currency_info.quantity
-
-            -- Be helpful and calculate the number of upgrades that can be done based off the number of crests the
-            -- player currently owns.  Ignore the "everything" currency as those costs vary per slot and may also be
-            -- discounted.
-            local num_upgrades_available = currency_id ~= upgrade_crests.__default.currency_id
-                and " "..ITEM_QUALITY_COLORS[7].hex.."("..floor(currency_qantity / UPGRADE_COST_CRESTS_ALL)..")|r"
-                or ""
-
-            tinsert(
-                crest_tuple[1],
-                "|cFFFFFFFF"..crest_tuple[4]..HEADER_COLON.."|r |T"..currency_info.iconFileID
-                    ..":12:12:0:0:64:64:4:60:4:60|t"..crest_tuple[3].color..currency_name
-                    ..num_upgrades_available.."|r"
-            )
-
-            local crest_sources = crest_tuple[2].sources
-            if crest_sources.other then
-                tinsert(crest_tuple[1], crest_sources.other)
-            end
-            if crest_sources.dungeon then
-                local crest_dungeon = crest_sources.dungeon
-                local dungeon_string = ""
-
-                if not set_header_dungeon then
-                    dungeon_string = "|cFFFFFFFF"..DUNGEONS..HEADER_COLON.."|r "
-
-                    set_header_dungeon = true
-                end
-
-                if crest_dungeon.levels then
-                    local dungeon_type = crest_dungeon.type
-                    if dungeon_type then
-                        dungeon_string = dungeon_string..dungeon_type..", "
-                    end
-
-                    local dungeon_levels = crest_dungeon.levels
-                    dungeon_string = dungeon_string..difficulty_names.dungeon.challenge.." "..dungeon_levels[1]
-
-                    if type(dungeon_levels[2]) == "number" then
-                        dungeon_string = dungeon_string.."-"..dungeon_levels[2]
-                    else
-                        dungeon_string = dungeon_string.." "..localizations.SOURCE_AND_ABOVE
-                    end
-                else
-                    dungeon_string = dungeon_string..crest_dungeon.type
-                end
-
-                tinsert(crest_tuple[1], dungeon_string)
-            end
-            if crest_sources.raid then
-                local raid_string = ""
-
-                if not set_header_raid then
-                    raid_string = "|cFFFFFFFF"..RAIDS..HEADER_COLON.."|r "
-
-                    set_header_raid = true
-                end
-
-                tinsert(crest_tuple[1], raid_string..crest_sources.raid)
-            end
-            -- This is largely the same logic as the dungeon information, but restating it allows for easier
-            -- modification in the future if necessary.
-            if crest_sources.delve then
-                local crest_delve = crest_sources.delve
-                local delve_string = ""
-
-                if not set_header_delve then
-                    delve_string = "|cFFFFFFFF"..DELVES..HEADER_COLON.."|r "
-
-                    set_header_delve = true
-                end
-
-                if crest_delve.levels then
-                    local delve_levels = crest_delve.levels
-                    -- GARRISON_TIER is the only global string I found that was "Tier" alone.  The localization context
-                    -- should be alright I think.
-                    delve_string = delve_string..GARRISON_TIER.." "..delve_levels[1]
-
-                    if type(delve_levels[2]) == "number" then
-                        delve_string = delve_string.."-"..delve_levels[2]
-                    else
-                        delve_string = delve_string.." "..localizations.SOURCE_AND_ABOVE
-                    end
-                end
-
-                tinsert(crest_tuple[1], delve_string)
-            end
-        until true
-    end
+    local sub_headings_set = {
+        delve = false,
+        dungeon = false,
+        raid = false,
+    }
+    local current_track_upgrade_sources = build_crest_sources(
+        current_upgrade_crest, current_upgrade_track, localizations.HEADER_CREST_CURRENT, sub_headings_set
+    )
+    local next_track_upgrade_sources = build_crest_sources(
+        next_upgrade_crest, next_upgrade_track, localizations.HEADER_CREST_NEXT, sub_headings_set
+    )
 
     -- The current track's crest information needs to have at least the same number of lines as the next track's crest
     -- information.  Otherwise, the tooltip formatting will be off.
@@ -457,7 +527,7 @@ local function tooltip_handler(tooltip, data)
 
     tooltip:AddLine("\n"..localizations.HEADER_UPGRADE_CRESTS..HEADER_COLON)
     tooltip:AddLine(build_item_level_track(item_level, upgrade_track, upgrade_level, max_upgrade_level))
-    tooltip:AddDoubleLine(build_crest_sources(upgrade_track, upgrade_level))
+    tooltip:AddDoubleLine(build_crest_sources_handler(upgrade_track, upgrade_level))
 
     tooltip:Show()
 end
@@ -471,7 +541,13 @@ local UpgradeClarity = {
 
 -- PLAYER_LOGIN event hook.
 function UpgradeClarity.events:PLAYER_LOGIN()
-    -- Hook into the GameTooltip data processor
+    -- Populate the crest discount lookup table.
+    warband_crest_discount(UPGRADE_SEASON_INFO[1].achievement_id)
+    warband_crest_discount(UPGRADE_SEASON_INFO[2].achievement_id)
+    warband_crest_discount(UPGRADE_SEASON_INFO[3].achievement_id)
+    warband_crest_discount(UPGRADE_SEASON_INFO[4].achievement_id)
+
+    -- Hook into the GameTooltip data processor.
     API_AddTooltipPostCall(TOOLTIP_TYPE_ITEM, tooltip_handler)
 end
 
