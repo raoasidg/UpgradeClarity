@@ -257,10 +257,14 @@ local warband_crest_discount = setmetatable({
     [UPGRADE_SEASON_INFO[4].achievement_id] = UPGRADE_SEASON_INFO[4].currency_id,
 }, {
     __call = function(self, achievement_id)
-        local earned_discount = select(4, API_GetAchievementInfo(achievement_id))
+        local warband_discount, _, _, _, _, _, _, _, _, deprecated_discount =
+            select(4, API_GetAchievementInfo(achievement_id))
         local currency_id = self[achievement_id]
 
-        rawset(self, currency_id, earned_discount)
+        rawset(self, currency_id, {
+            deprecated_discount = deprecated_discount,
+            warband_discount = warband_discount,
+        })
 
         self[achievement_id] = nil
     end,
@@ -268,10 +272,6 @@ local warband_crest_discount = setmetatable({
         error("Assignment error: \"warband_crest_discount\" cannot be directly assigned attributes.")
     end
 })
-warband_crest_discount(UPGRADE_SEASON_INFO[1].achievement_id)
-warband_crest_discount(UPGRADE_SEASON_INFO[2].achievement_id)
-warband_crest_discount(UPGRADE_SEASON_INFO[3].achievement_id)
-warband_crest_discount(UPGRADE_SEASON_INFO[4].achievement_id)
 
 -- Data Functions
 -- Helper function to actually build the crest sources section of the tooltip.
@@ -279,6 +279,10 @@ local function build_crest_sources(upgrade_crest, upgrade_track, heading, sub_he
     local upgrade_sources = {}
 
     if not upgrade_crest then return upgrade_sources end
+
+    if warband_crest_discount[upgrade_crest.currency_id].deprecated_discount then
+        upgrade_crest = upgrade_crests.__default
+    end
 
     local currency_id = upgrade_crest.currency_id
     local currency_info = API_GetCurrencyInfo(currency_id)
@@ -290,7 +294,7 @@ local function build_crest_sources(upgrade_crest, upgrade_track, heading, sub_he
     local num_upgrades_available = ""
     if currency_id ~= upgrade_crests.__default.currency_id then
         local cost_with_discount = floor(UPGRADE_COST_CRESTS_ALL * (
-            warband_crest_discount[currency_id]
+            warband_crest_discount[currency_id].warband_discount
                 and (1 - UPGRADE_WARBAND_CREST_DISCOUNT)
                 or 1
         ) + 0.5)
@@ -537,7 +541,13 @@ local UpgradeClarity = {
 
 -- PLAYER_LOGIN event hook.
 function UpgradeClarity.events:PLAYER_LOGIN()
-    -- Hook into the GameTooltip data processor
+    -- Populate the crest discount lookup table.
+    warband_crest_discount(UPGRADE_SEASON_INFO[1].achievement_id)
+    warband_crest_discount(UPGRADE_SEASON_INFO[2].achievement_id)
+    warband_crest_discount(UPGRADE_SEASON_INFO[3].achievement_id)
+    warband_crest_discount(UPGRADE_SEASON_INFO[4].achievement_id)
+
+    -- Hook into the GameTooltip data processor.
     API_AddTooltipPostCall(TOOLTIP_TYPE_ITEM, tooltip_handler)
 end
 
