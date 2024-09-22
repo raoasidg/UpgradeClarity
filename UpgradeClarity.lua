@@ -9,8 +9,8 @@ local error, floor, ipairs, pairs, rawset, select, setmetatable,
 
 local API_AddTooltipPostCall = TooltipDataProcessor.AddTooltipPostCall
 local API_CreateFrame = CreateFrame
-local API_GameTooltip, API_ItemRefTooltip, API_ShoppingTooltip1, API_ShoppingTooltip2 =
-      GameTooltip, ItemRefTooltip, ShoppingTooltip1, ShoppingTooltip2
+local API_GameTooltip, API_GameTooltipTooltip, API_ItemRefTooltip, API_ShoppingTooltip1, API_ShoppingTooltip2 =
+      GameTooltip, GameTooltipTooltip, ItemRefTooltip, ShoppingTooltip1, ShoppingTooltip2
 local API_GetAchievementInfo = GetAchievementInfo
 local API_GetCurrencyInfo = C_CurrencyInfo.GetCurrencyInfo
 local API_GetDifficultyName = DifficultyUtil.GetDifficultyName
@@ -506,9 +506,10 @@ local function tooltip_handler(tooltip, data)
 
         return false
     end
+
     if not eq_sequence(
         tooltip,
-        {API_GameTooltip, API_ItemRefTooltip, API_ShoppingTooltip1, API_ShoppingTooltip2}
+        {API_GameTooltip, API_GameTooltipTooltip, API_ItemRefTooltip, API_ShoppingTooltip1, API_ShoppingTooltip2}
     ) then return end
 
     local item_link = select(2, API_GetDisplayedItem(tooltip))
