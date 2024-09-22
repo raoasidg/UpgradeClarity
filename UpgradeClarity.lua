@@ -257,16 +257,20 @@ local warband_crest_discount = setmetatable({
     [UPGRADE_SEASON_INFO[4].achievement_id] = UPGRADE_SEASON_INFO[4].currency_id,
 }, {
     __call = function(self, achievement_id)
-        local warband_discount, _, _, _, _, _, _, _, _, deprecated_discount =
-            select(4, API_GetAchievementInfo(achievement_id))
+        local achievement_info = {API_GetAchievementInfo(achievement_id)}
+        local warband_discount = achievement_info[4]
+        local deprecated_discount = achievement_info[13]
+
+        -- Remove chances of achievement ID and currency ID collisions.  The initial values of the table serve only to
+        -- directly map the achievement IDs to the relevant currency ID for the season; once the achievement data is in
+        -- hand, the ID is no longer needed.
         local currency_id = self[achievement_id]
+        self[achievement_id] = nil
 
         rawset(self, currency_id, {
             deprecated_discount = deprecated_discount,
             warband_discount = warband_discount,
         })
-
-        self[achievement_id] = nil
     end,
     __newindex = function()
         error("Assignment error: \"warband_crest_discount\" cannot be directly assigned attributes.")
