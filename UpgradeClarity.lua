@@ -280,7 +280,8 @@ local function build_crest_sources(upgrade_crest, upgrade_track, heading, sub_he
 
     if not upgrade_crest then return upgrade_sources end
 
-    if warband_crest_discount[upgrade_crest.currency_id].deprecated_discount then
+    if warband_crest_discount[upgrade_crest.currency_id]
+        and warband_crest_discount[upgrade_crest.currency_id].deprecated_discount then
         upgrade_crest = upgrade_crests.__default
     end
 
