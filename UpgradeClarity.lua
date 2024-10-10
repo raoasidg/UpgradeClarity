@@ -223,7 +223,7 @@ local upgrade_crests = setmetatable({
                 levels = {8, "+"},
             },
             dungeon = {
-                levels = {4, 8},
+                levels = {4, 7},
             },
             raid = difficulty_names.raid.heroic,
         },
@@ -233,7 +233,7 @@ local upgrade_crests = setmetatable({
         name = localizations.CREST_NAME_MYTH,
         sources = {
             dungeon = {
-                levels = {9, "+"},
+                levels = {8, "+"},
             },
             raid = difficulty_names.raid.mythic,
         },
