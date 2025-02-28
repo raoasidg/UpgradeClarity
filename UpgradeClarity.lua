@@ -16,6 +16,7 @@ local API_GetCurrencyInfo = C_CurrencyInfo.GetCurrencyInfo
 local API_GetDifficultyName = DifficultyUtil.GetDifficultyName
 local API_GetDisplayedItem = TooltipUtil.GetDisplayedItem
 local API_GetItemInfo = C_Item.GetItemInfo
+local API_Item = Item
 
 local DIFFICULTY_IDS = DifficultyUtil.ID
 local DELVES, DUNGEONS, RAIDS = DELVES_LABEL, DUNGEONS, RAIDS
@@ -29,26 +30,26 @@ local TOOLTIP_TYPE_ITEM = Enum.TooltipDataType.Item
 -- Upgrade Cost Information
 -- Relevant upgrade crest cost information along with contextual upgrade information for the current expansion season.
 local UPGRADE_COST_CRESTS_ALL = 15
-local UPGRADE_ILEVEL_LOWER_LIMIT = 558 -- Explorer 1/8
+local UPGRADE_ILEVEL_LOWER_LIMIT = 597 -- Season 2 Explorer 1/8
 local UPGRADE_SEASON_INFO = {
     [0] = { -- Default Stones
         currency_id = 3008,
     },
     [1] = { -- Veteran Crests
-        achievement_id = 40107,
-        currency_id = 2914,
+        achievement_id = 40942,
+        currency_id = 3107,
     },
     [2] = { -- Champion Crests
-        achievement_id = 40115,
-        currency_id = 2915,
+        achievement_id = 40943,
+        currency_id = 3108,
     },
     [3] = { -- Hero Crests
-        achievement_id = 40118,
-        currency_id = 2916,
+        achievement_id = 40944,
+        currency_id = 3109,
     },
     [4] = { -- Myth Crests
-        achievement_id = 40393,
-        currency_id = 2917,
+        achievement_id = 40945,
+        currency_id = 3110,
     },
 }
 local UPGRADE_WARBAND_CREST_DISCOUNT = (1 / 3)
@@ -62,6 +63,23 @@ local BAND_SPACING = 3
 local BAND_ADJUSTMENT = 1
 
 -- Data Structures
+local item_refs = setmetatable({},
+{
+    __call = function(self, item_id)
+        local item = API_Item:CreateFromItemID(item_id)
+
+        item:ContinueOnItemLoad(function()
+            rawset(self, item_id, {
+                icon = item:GetItemIcon()
+            })
+        end)
+    end,
+    __newindex = function()
+        error("Assignment error: \"item_refs\" cannot be directly assigned attributes.")
+    end,
+})
+item_refs(233071)
+
 -- Table containing mappings of the names of dungeon and raid difficulties.
 local difficulty_names = setmetatable({
     dungeon = {},
@@ -206,10 +224,10 @@ local upgrade_crests = setmetatable({
         name = localizations.CREST_NAME_CHAMPION,
         sources = {
             delve = {
+                bounty = {4, 5},
                 levels = {6, 7},
             },
             dungeon = {
-                levels = {2, 3},
                 type = difficulty_names.dungeon.mythic,
             },
             raid = difficulty_names.raid.normal,
@@ -220,10 +238,11 @@ local upgrade_crests = setmetatable({
         name = localizations.CREST_NAME_HERO,
         sources = {
             delve = {
-                levels = {8, "+"},
+                bounty = {6, 7},
+                levels = {8, 11},
             },
             dungeon = {
-                levels = {4, 7},
+                levels = {2, 6},
             },
             raid = difficulty_names.raid.heroic,
         },
@@ -232,8 +251,12 @@ local upgrade_crests = setmetatable({
         currency_id = UPGRADE_SEASON_INFO[4].currency_id,
         name = localizations.CREST_NAME_MYTH,
         sources = {
+            delve = {
+                bounty = {8, "+"},
+                levels = {11},
+            },
             dungeon = {
-                levels = {8, "+"},
+                levels = {7, "+"},
             },
             raid = difficulty_names.raid.mythic,
         },
@@ -381,7 +404,22 @@ local function build_crest_sources(upgrade_crest, upgrade_track, heading, sub_he
             if type(delve_levels[2]) == "number" then
                 delve_string = delve_string.."-"..delve_levels[2]
             else
-                delve_string = delve_string.." "..localizations.SOURCE_AND_ABOVE
+                delve_string = delve_string--.." "..localizations.SOURCE_AND_ABOVE
+                if delve_levels[1] == 11 then
+                    delve_string = ITEM_QUALITY_COLORS[7].hex..delve_string.."|r"
+                end
+            end
+
+            if crest_delve.bounty then
+                local delve_bounty_levels = crest_delve.bounty
+                delve_string = delve_string.." (|T"..item_refs[233071].icon..":12:12:0:0:64:64:4:60:4:60|t "
+                    ..delve_bounty_levels[1]
+
+                if type(delve_bounty_levels[2]) == "number" then
+                    delve_string = delve_string.."-"..delve_bounty_levels[2]..")"
+                else
+                    delve_string = delve_string.." "..localizations.SOURCE_AND_ABOVE..")"
+                end
             end
         end
 

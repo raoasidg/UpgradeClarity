@@ -13,7 +13,7 @@ localizations.HEADER_CREST_NEXT = "Next"
 localizations.HEADER_UPGRADE_CRESTS = "Upgrade Track Materials"
 localizations.HEADER_UPGRADE_TRACK = "Track"
 
-localizations.SOURCE_AND_ABOVE = "and above"
+localizations.SOURCE_AND_ABOVE = "and up"
 
 localizations.UPGRADE_TRACK_NAME_EXPLORER = "Explorer"
 localizations.UPGRADE_TRACK_NAME_ADVENTURER = "Adventurer"
