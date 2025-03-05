@@ -1,5 +1,5 @@
 ## Interface: 110100
-## Version: 2.4
+## Version: 2.4.1
 ## Title: UpgradeClarity
 ## Author: raoasidg
 ## IconTexture: Interface\ICONS\inv_crestupgrade_undermine_gilded.blp
