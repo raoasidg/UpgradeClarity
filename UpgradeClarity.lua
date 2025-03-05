@@ -63,8 +63,10 @@ local BAND_SPACING = 3
 local BAND_ADJUSTMENT = 1
 
 -- Data Structures
-local item_refs = setmetatable({},
-{
+-- Table containing asynchronously preloaded item icon information for later reference.  This is done to handle the case
+-- where item information has not been cached by the client yet.  Only relevant for one item (Delver's Bounty for the
+-- relevant season), but better to do things correctly.
+local item_refs = setmetatable({}, {
     __call = function(self, item_id)
         local item = API_Item:CreateFromItemID(item_id)
 
@@ -80,20 +82,30 @@ local item_refs = setmetatable({},
 })
 item_refs(233071)
 
--- Table containing mappings of the names of dungeon and raid difficulties.
-local difficulty_names = setmetatable({
-    dungeon = {},
-    raid = {},
-}, {
+-- Table containing mappings of the localized names of dungeon and raid difficulties.
+local difficulty_names = setmetatable({}, {
     __call = function(self, identifier)
         local difficulty_type_dungeon = strmatch(identifier, "^Dungeon(.+)")
         local difficulty_type_raid = strmatch(identifier, "^PrimaryRaid(.+)")
         local location_type = difficulty_type_dungeon and "dungeon" or difficulty_type_raid and "raid"
 
         if not location_type then return end
+        if not self[location_type] then
+            rawset(self, location_type, setmetatable({}, {
+                __call = function(self, difficulty_type, difficulty_name)
+                    rawset(self, difficulty_type, difficulty_name)
+                end,
+                __newindex = function()
+                    error(
+                        "Assignment error: \"difficulty_names."..location_type
+                            .."\" cannot be directly assigned attributes."
+                    )
+                end,
+            }))
+        end
 
         local difficulty_type = strlower(difficulty_type_dungeon or difficulty_type_raid)
-        self[location_type][difficulty_type] = API_GetDifficultyName(DIFFICULTY_IDS[identifier])
+        self[location_type](difficulty_type, API_GetDifficultyName(DIFFICULTY_IDS[identifier]))
     end,
     __newindex = function()
         error("Assignment error: \"difficulty_names\" cannot be directly assigned attributes.")
@@ -180,7 +192,7 @@ local upgrade_tracks = {
         color = ITEM_QUALITY_COLORS[6].hex,
     },
 --[[
-    [7] = { -- Awakened; only relevant in Dragonflight Season 4.
+    [7] = { -- TWW S2 DINAR TRACK
         color = "|c"..RAID_CLASS_COLORS.PALADIN.colorStr,
         shared_tracks = {
             {
@@ -252,7 +264,7 @@ local upgrade_crests = setmetatable({
         name = localizations.CREST_NAME_MYTH,
         sources = {
             delve = {
-                bounty = {8, "+"},
+                bounty = {8, 11},
                 levels = {11},
             },
             dungeon = {
@@ -398,28 +410,19 @@ local function build_crest_sources(upgrade_crest, upgrade_track, heading, sub_he
         if crest_delve.levels then
             local delve_levels = crest_delve.levels
             -- GARRISON_TIER is the only global string I found that was "Tier" alone.  The localization context
-            -- should be alright I think.
+            -- should be alright.
             delve_string = delve_string..GARRISON_TIER.." "..delve_levels[1]
 
             if type(delve_levels[2]) == "number" then
                 delve_string = delve_string.."-"..delve_levels[2]
-            else
-                delve_string = delve_string--.." "..localizations.SOURCE_AND_ABOVE
-                if delve_levels[1] == 11 then
-                    delve_string = ITEM_QUALITY_COLORS[7].hex..delve_string.."|r"
-                end
+            elseif delve_levels[1] == 11 then
+                delve_string = ITEM_QUALITY_COLORS[7].hex..delve_string.."|r"
             end
 
             if crest_delve.bounty then
                 local delve_bounty_levels = crest_delve.bounty
                 delve_string = delve_string.." (|T"..item_refs[233071].icon..":12:12:0:0:64:64:4:60:4:60|t "
-                    ..delve_bounty_levels[1]
-
-                if type(delve_bounty_levels[2]) == "number" then
-                    delve_string = delve_string.."-"..delve_bounty_levels[2]..")"
-                else
-                    delve_string = delve_string.." "..localizations.SOURCE_AND_ABOVE..")"
-                end
+                    ..delve_bounty_levels[1].."-"..delve_bounty_levels[2]..")"
             end
         end
 
@@ -561,7 +564,9 @@ local function tooltip_handler(tooltip, data)
     local item_level = select(4, API_GetItemInfo(item_link))
     -- Exit if the item level does not exist or is lower than the limit that is relevant for upgrades for the current
     -- season.
-    if not item_level or item_level < UPGRADE_ILEVEL_LOWER_LIMIT then return end
+    if not item_level
+        or item_level < UPGRADE_ILEVEL_LOWER_LIMIT
+        or strmatch(data.lines[2].leftText, "^|cFF808080") then return end
 
     local upgrade_track, upgrade_level, max_upgrade_level = get_upgrade_information(data.lines)
     if not upgrade_track
