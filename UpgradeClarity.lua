@@ -59,6 +59,7 @@ local UPGRADE_WARBAND_CREST_DISCOUNT = (1 / 3)
 -- necessary to add/subtract BAND_ADJUSTMENT from neighboring band item levels for every subsequent band away from the
 -- item's current upgrade band.
 local BAND_COUNT = 4
+local BAND_COUNT_MYTH = 3 -- TWW S2 Myth track does not conform to logic.
 local BAND_SPACING = 3
 local BAND_ADJUSTMENT = 1
 
@@ -483,17 +484,18 @@ end
 
 -- Helper function to generate the upgrade track gear item levels string for the tooltip or item link.
 local function build_item_level_track(item_level, upgrade_track, upgrade_level, max_upgrade_level)
+    local adjusted_band_count = upgrade_track == 6 and BAND_COUNT_MYTH or BAND_COUNT
     -- track_start_item_level = current item level
     --      MINUS total upgrade item levels
     --      MINUS the item level adjustment for the number of upgrade bands to the start of the upgrade track.
     local track_start_item_level = item_level
         - ((upgrade_level - 1) * BAND_SPACING)
-        - (floor((upgrade_level - 1) / BAND_COUNT) * BAND_ADJUSTMENT)
+        - (floor((upgrade_level - 1) / adjusted_band_count) * BAND_ADJUSTMENT)
     local color = upgrade_level == 1 and ITEM_QUALITY_COLORS[7].hex or ITEM_QUALITY_COLORS[0].hex
 
     local track_item_levels = {color..track_start_item_level.."|r"}
     for i = 1, max_upgrade_level - 1 do
-        local band_adjustment = floor(i / BAND_COUNT) * BAND_ADJUSTMENT
+        local band_adjustment = floor(i / adjusted_band_count) * BAND_ADJUSTMENT
         local band_spacing = (BAND_SPACING * i) + band_adjustment
 
         color = ITEM_QUALITY_COLORS[0].hex
