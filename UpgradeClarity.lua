@@ -16,6 +16,7 @@ local API_GetCurrencyInfo = C_CurrencyInfo.GetCurrencyInfo
 local API_GetDifficultyName = DifficultyUtil.GetDifficultyName
 local API_GetDisplayedItem = TooltipUtil.GetDisplayedItem
 local API_GetItemInfo = C_Item.GetItemInfo
+local API_GetSpellDisplayVisualizationInfo = C_UIWidgetManager.GetSpellDisplayVisualizationInfo
 local API_Item = Item
 
 local DIFFICULTY_IDS = DifficultyUtil.ID
@@ -59,7 +60,6 @@ local UPGRADE_WARBAND_CREST_DISCOUNT = (1 / 3)
 -- necessary to add/subtract BAND_ADJUSTMENT from neighboring band item levels for every subsequent band away from the
 -- item's current upgrade band.
 local BAND_COUNT = 4
-local BAND_COUNT_MYTH = 3 -- TWW S2 Myth track does not conform to logic.
 local BAND_SPACING = 3
 local BAND_ADJUSTMENT = 1
 
@@ -68,79 +68,85 @@ local BAND_ADJUSTMENT = 1
 -- where item information has not been cached by the client yet.  Only relevant for one item (Delver's Bounty for the
 -- relevant season), but better to do things correctly.
 local item_refs = setmetatable({}, {
-    __call = function(self, item_id)
-        local item = API_Item:CreateFromItemID(item_id)
+    __call = function(self, item_ids)
+        for _, item_id in ipairs(item_ids) do
+            local item = API_Item:CreateFromItemID(item_id)
 
-        item:ContinueOnItemLoad(function()
-            rawset(self, item_id, {
-                icon = item:GetItemIcon()
-            })
-        end)
+            item:ContinueOnItemLoad(function()
+                rawset(self, item_id, {
+                    icon = item:GetItemIcon()
+                })
+            end)
+        end
     end,
     __newindex = function()
         error("Assignment error: \"item_refs\" cannot be directly assigned attributes.")
     end,
 })
-item_refs(233071)
+item_refs({233071})
 
 -- Table containing mappings of the localized names of dungeon and raid difficulties.
 local difficulty_names = setmetatable({}, {
-    __call = function(self, identifier)
-        local difficulty_type_dungeon = strmatch(identifier, "^Dungeon(.+)")
-        local difficulty_type_raid = strmatch(identifier, "^PrimaryRaid(.+)")
-        local location_type = difficulty_type_dungeon and "dungeon" or difficulty_type_raid and "raid"
+    __call = function(self, identifiers)
+        for _, identifier in ipairs(identifiers) do
+            local difficulty_type_dungeon = strmatch(identifier, "^Dungeon(.+)")
+            local difficulty_type_raid = strmatch(identifier, "^PrimaryRaid(.+)")
+            local location_type = difficulty_type_dungeon and "dungeon" or difficulty_type_raid and "raid"
 
-        if not location_type then return end
-        if not self[location_type] then
-            rawset(self, location_type, setmetatable({}, {
-                __call = function(self, difficulty_type, difficulty_name)
-                    rawset(self, difficulty_type, difficulty_name)
-                end,
-                __newindex = function()
-                    error(
-                        "Assignment error: \"difficulty_names."..location_type
-                            .."\" cannot be directly assigned attributes."
-                    )
-                end,
-            }))
+            if not location_type then return end
+            if not self[location_type] then
+                rawset(self, location_type, setmetatable({}, {
+                    __call = function(self, difficulty_type, difficulty_name)
+                        rawset(self, difficulty_type, difficulty_name)
+                    end,
+                    __newindex = function()
+                        error(
+                            "Assignment error: \"difficulty_names."..location_type
+                                .."\" cannot be directly assigned attributes."
+                        )
+                    end,
+                }))
+            end
+
+            local difficulty_type = strlower(difficulty_type_dungeon or difficulty_type_raid)
+            self[location_type](difficulty_type, API_GetDifficultyName(DIFFICULTY_IDS[identifier]))
         end
-
-        local difficulty_type = strlower(difficulty_type_dungeon or difficulty_type_raid)
-        self[location_type](difficulty_type, API_GetDifficultyName(DIFFICULTY_IDS[identifier]))
     end,
     __newindex = function()
         error("Assignment error: \"difficulty_names\" cannot be directly assigned attributes.")
     end,
 })
-difficulty_names("DungeonHeroic")
-difficulty_names("DungeonMythic")
-difficulty_names("DungeonChallenge") -- Mythic+
-difficulty_names("PrimaryRaidLFR")
-difficulty_names("PrimaryRaidNormal")
-difficulty_names("PrimaryRaidHeroic")
-difficulty_names("PrimaryRaidMythic")
+difficulty_names({
+    "DungeonHeroic",
+    "DungeonMythic",
+    "DungeonChallenge", -- Mythic+
+    "PrimaryRaidLFR",
+    "PrimaryRaidNormal",
+    "PrimaryRaidHeroic",
+    "PrimaryRaidMythic",
+})
 
 -- Table containing mappings of the localized upgrade track names to the relevant indices.   The values are always
--- sequentially incremented by the call order (e.g. VETERAN = 3).
-local upgrade_mapping = setmetatable({
-    __length = 0,
-}, {
-    __call = function(self, upgrade_track_name)
-        self.__length = self.__length + 1
-
-        rawset(self, localizations[upgrade_track_name], self.__length)
+-- sequentially incremented by the passed table order (e.g. VETERAN = 3).
+local upgrade_mapping = setmetatable({}, {
+    __call = function(self, upgrade_tracks)
+        for index, upgrade_track_name in ipairs(upgrade_tracks) do
+            rawset(self, localizations[upgrade_track_name], index)
+        end
     end,
     __newindex = function()
         error("Assignment error: \"upgrade_mapping\" assignments must be done through function call.")
     end,
 })
-upgrade_mapping("UPGRADE_TRACK_NAME_EXPLORER")
-upgrade_mapping("UPGRADE_TRACK_NAME_ADVENTURER")
-upgrade_mapping("UPGRADE_TRACK_NAME_VETERAN")
-upgrade_mapping("UPGRADE_TRACK_NAME_CHAMPION")
-upgrade_mapping("UPGRADE_TRACK_NAME_HERO")
-upgrade_mapping("UPGRADE_TRACK_NAME_MYTH")
-upgrade_mapping("UPGRADE_TRACK_NAME_EX1")
+upgrade_mapping({
+    "UPGRADE_TRACK_NAME_EXPLORER",
+    "UPGRADE_TRACK_NAME_ADVENTURER",
+    "UPGRADE_TRACK_NAME_VETERAN",
+    "UPGRADE_TRACK_NAME_CHAMPION",
+    "UPGRADE_TRACK_NAME_HERO",
+    "UPGRADE_TRACK_NAME_MYTH",
+    "UPGRADE_TRACK_NAME_EX1",
+})
 
 -- Table containing data regarding non-crafted upgrade tracks.
 local upgrade_tracks = {
@@ -193,7 +199,7 @@ local upgrade_tracks = {
         color = ITEM_QUALITY_COLORS[6].hex,
     },
 --[[
-    [7] = { -- TWW S2 DINAR TRACK
+    [7] = { -- DINAR TRACK
         color = "|c"..RAID_CLASS_COLORS.PALADIN.colorStr,
         shared_tracks = {
             {
@@ -292,31 +298,91 @@ local warband_crest_discount = setmetatable({
     [UPGRADE_SEASON_INFO[3].achievement_id] = UPGRADE_SEASON_INFO[3].currency_id,
     [UPGRADE_SEASON_INFO[4].achievement_id] = UPGRADE_SEASON_INFO[4].currency_id,
 }, {
-    __call = function(self, achievement_id)
-        local achievement_info = {API_GetAchievementInfo(achievement_id)}
-        local warband_discount = achievement_info[4]
-        local deprecated_discount = achievement_info[13]
+    __call = function(self, achievement_ids)
+        for _, achievement_id in ipairs(achievement_ids) do
+            local achievement_info = {API_GetAchievementInfo(achievement_id)}
+            local warband_discount = achievement_info[4]
+            local deprecated_discount = achievement_info[13]
 
-        -- Remove chances of achievement ID and currency ID collisions.  The initial values of the table serve only to
-        -- directly map the achievement IDs to the relevant currency ID for the season; once the achievement data is in
-        -- hand, the ID is no longer needed.
-        local currency_id = self[achievement_id]
-        self[achievement_id] = nil
+            -- Remove chances of achievement ID and currency ID collisions.  The initial values of the table serve only
+            -- to directly map the achievement IDs to the relevant currency ID for the season; once the achievement data
+            -- is in hand, the ID is no longer needed.
+            local currency_id = self[achievement_id]
+            self[achievement_id] = nil
 
-        rawset(self, currency_id, {
-            deprecated_discount = deprecated_discount,
-            warband_discount = warband_discount,
-        })
+            rawset(self, currency_id, {
+                deprecated_discount = deprecated_discount,
+                warband_discount = warband_discount,
+            })
+        end
     end,
     __newindex = function()
         error("Assignment error: \"warband_crest_discount\" cannot be directly assigned attributes.")
     end
 })
 
+-- Table containing the list of widget IDs that detail the information relating to the 3x weekly Tier 11 Gilded Stash.
+-- Each ID corresponds to a delve in the current expansion and season.
+local update_gilded_stash = setmetatable({}, {
+    __call = function(self, ...)
+        local widget_ids = ...
+        if type(widget_ids) == "table" and not self.widget_ids then
+            rawset(self, "widget_ids", setmetatable({}, {
+                __call = function(self, widget_id)
+                    rawset(self, widget_id, true)
+                end,
+                __newindex = function()
+                    error(
+                        "Assignment error: \"update_gilded_stash.widget_ids\" cannot be directly assigned attributes."
+                    )
+                end,
+            }))
+
+            for _, widget_id in ipairs(widget_ids) do
+                self.widget_ids(widget_id)
+
+                if not self.first_widget_id then
+                    rawset(self, "first_widget_id", widget_id)
+                end
+            end
+
+            return
+        end
+
+        if self.available and self.available == 0 then return end
+
+        local widget_information = API_GetSpellDisplayVisualizationInfo(self.first_widget_id)
+        if not widget_information then return end
+
+        local looted, maximum = strmatch(widget_information.spellInfo.tooltip, "(%d)/(%d)")
+        rawset(self, "available", tonumber(maximum) - tonumber(looted))
+    end,
+    __newindex = function()
+        error("Assignment error: \"update_gilded_stash\" cannot be directly assigned attributes.")
+    end,
+})
+update_gilded_stash({
+    6659,
+    6718,
+    6719,
+    6720,
+    6721,
+    6722,
+    6723,
+    6724,
+    6725,
+    6726,
+    6727,
+    6728,
+    6729,
+    6794,
+})
+
 -- Data Functions
 -- Helper function to actually build the crest sources section of the tooltip.
 local function build_crest_sources(upgrade_crest, upgrade_track, heading, sub_headings_set)
     local upgrade_sources = {}
+    local texture_sizing_string = ":12:12:0:0:64:64:4:60:4:60|t|T0:2|t"
 
     if not upgrade_crest then return upgrade_sources end
 
@@ -346,15 +412,15 @@ local function build_crest_sources(upgrade_crest, upgrade_track, heading, sub_he
 
     tinsert(
         upgrade_sources,
-        "|cFFFFFFFF"..heading..HEADER_COLON.."|r |T"..currency_info.iconFileID
-            ..":12:12:0:0:64:64:4:60:4:60|t"..upgrade_track.color..(upgrade_crest.name or currency_info.name)
-            ..num_upgrades_available.."|r"
+        "|cFFFFFFFF"..heading..HEADER_COLON.."|r |T"..currency_info.iconFileID..texture_sizing_string
+            ..upgrade_track.color..(upgrade_crest.name or currency_info.name)..num_upgrades_available.."|r"
     )
 
     local crest_sources = upgrade_crest.sources
     if crest_sources.other then
         tinsert(upgrade_sources, crest_sources.other)
     end
+
     if crest_sources.dungeon then
         local crest_dungeon = crest_sources.dungeon
         local dungeon_string = ""
@@ -385,6 +451,7 @@ local function build_crest_sources(upgrade_crest, upgrade_track, heading, sub_he
 
         tinsert(upgrade_sources, dungeon_string)
     end
+
     if crest_sources.raid then
         local raid_string = ""
 
@@ -396,6 +463,7 @@ local function build_crest_sources(upgrade_crest, upgrade_track, heading, sub_he
 
         tinsert(upgrade_sources, raid_string..crest_sources.raid)
     end
+
     -- This is largely the same logic as the dungeon information, but restating it allows for easier
     -- modification in the future if necessary.
     if crest_sources.delve then
@@ -410,19 +478,26 @@ local function build_crest_sources(upgrade_crest, upgrade_track, heading, sub_he
 
         if crest_delve.levels then
             local delve_levels = crest_delve.levels
-            -- GARRISON_TIER is the only global string I found that was "Tier" alone.  The localization context
+            -- GARRISON_TIER is the only global string I found that was the word "Tier" alone.  The localization context
             -- should be alright.
             delve_string = delve_string..GARRISON_TIER.." "..delve_levels[1]
 
             if type(delve_levels[2]) == "number" then
                 delve_string = delve_string.."-"..delve_levels[2]
             elseif delve_levels[1] == 11 then
-                delve_string = ITEM_QUALITY_COLORS[7].hex..delve_string.."|r"
+                local gilded_stash_status_color = ""
+                if type(update_gilded_stash.available) == "number" then
+                    gilded_stash_status_color = update_gilded_stash.available > 0
+                        and ITEM_QUALITY_COLORS[7].hex
+                        or "|cFF00FF00"
+                end
+
+                delve_string = gilded_stash_status_color..delve_string.."|r"
             end
 
             if crest_delve.bounty then
                 local delve_bounty_levels = crest_delve.bounty
-                delve_string = delve_string.." (|T"..item_refs[233071].icon..":12:12:0:0:64:64:4:60:4:60|t "
+                delve_string = delve_string.." (|T"..item_refs[233071].icon..texture_sizing_string
                     ..delve_bounty_levels[1].."-"..delve_bounty_levels[2]..")"
             end
         end
@@ -484,18 +559,17 @@ end
 
 -- Helper function to generate the upgrade track gear item levels string for the tooltip or item link.
 local function build_item_level_track(item_level, upgrade_track, upgrade_level, max_upgrade_level)
-    local adjusted_band_count = upgrade_track == 6 and BAND_COUNT_MYTH or BAND_COUNT
     -- track_start_item_level = current item level
     --      MINUS total upgrade item levels
     --      MINUS the item level adjustment for the number of upgrade bands to the start of the upgrade track.
     local track_start_item_level = item_level
         - ((upgrade_level - 1) * BAND_SPACING)
-        - (floor((upgrade_level - 1) / adjusted_band_count) * BAND_ADJUSTMENT)
+        - (floor((upgrade_level - 1) / BAND_COUNT) * BAND_ADJUSTMENT)
     local color = upgrade_level == 1 and ITEM_QUALITY_COLORS[7].hex or ITEM_QUALITY_COLORS[0].hex
 
     local track_item_levels = {color..track_start_item_level.."|r"}
     for i = 1, max_upgrade_level - 1 do
-        local band_adjustment = floor(i / adjusted_band_count) * BAND_ADJUSTMENT
+        local band_adjustment = floor(i / BAND_COUNT) * BAND_ADJUSTMENT
         local band_spacing = (BAND_SPACING * i) + band_adjustment
 
         color = ITEM_QUALITY_COLORS[0].hex
@@ -590,16 +664,36 @@ local UpgradeClarity = {
     frame = API_CreateFrame("Frame"),
 }
 
+-- ACTIVE_DELVE_DATA_UPDATE event hook.
+-- ZONE_CHANGED_NEW_AREA is the same function.
+function UpgradeClarity.events:ACTIVE_DELVE_DATA_UPDATE()
+    update_gilded_stash()
+end
+UpgradeClarity.events.ZONE_CHANGED_NEW_AREA = UpgradeClarity.events.ACTIVE_DELVE_DATA_UPDATE
+
 -- PLAYER_LOGIN event hook.
 function UpgradeClarity.events:PLAYER_LOGIN()
     -- Populate the crest discount lookup table.
-    warband_crest_discount(UPGRADE_SEASON_INFO[1].achievement_id)
-    warband_crest_discount(UPGRADE_SEASON_INFO[2].achievement_id)
-    warband_crest_discount(UPGRADE_SEASON_INFO[3].achievement_id)
-    warband_crest_discount(UPGRADE_SEASON_INFO[4].achievement_id)
+    warband_crest_discount({
+        UPGRADE_SEASON_INFO[1].achievement_id,
+        UPGRADE_SEASON_INFO[2].achievement_id,
+        UPGRADE_SEASON_INFO[3].achievement_id,
+        UPGRADE_SEASON_INFO[4].achievement_id,
+    })
 
     -- Hook into the GameTooltip data processor.
     API_AddTooltipPostCall(TOOLTIP_TYPE_ITEM, tooltip_handler)
+
+    -- Update the availability status of the Tier 11 Gilded Stash.
+    update_gilded_stash()
+end
+
+-- UPDATE_UI_WIDGET event hook.
+function UpgradeClarity.events:UPDATE_UI_WIDGET(widget)
+    local widget_id = widget.widgetID
+    if widget_id and update_gilded_stash[widget_id] then
+        update_gilded_stash()
+    end
 end
 
 -- Register events established for the addon frame.
