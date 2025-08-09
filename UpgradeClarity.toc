@@ -1,8 +1,8 @@
-## Interface: 110105
-## Version: 2.4.2
+## Interface: 110200
+## Version: 2.4.5
 ## Title: UpgradeClarity
 ## Author: raoasidg
-## IconTexture: Interface\ICONS\inv_crestupgrade_undermine_gilded.blp
+## IconTexture: Interface\ICONS\inv_crestupgrade_ethereal_gilded.blp
 ## Category-enUS: User Interface
 ## Category-deDE: Benutzerinterface
 ## Category-esES: Interfaz de usuario
