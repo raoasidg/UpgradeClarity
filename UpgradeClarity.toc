@@ -1,5 +1,5 @@
 ## Interface: 110200
-## Version: 2.4.3
+## Version: 2.4.5
 ## Title: UpgradeClarity
 ## Author: raoasidg
 ## IconTexture: Interface\ICONS\inv_crestupgrade_ethereal_gilded.blp
