@@ -31,26 +31,26 @@ local TOOLTIP_TYPE_ITEM = Enum.TooltipDataType.Item
 -- Upgrade Cost Information
 -- Relevant upgrade crest cost information along with contextual upgrade information for the current expansion season.
 local UPGRADE_COST_CRESTS_ALL = 15
-local UPGRADE_ILEVEL_LOWER_LIMIT = 597 -- Season 2 Explorer 1/8
+local UPGRADE_ILEVEL_LOWER_LIMIT = 642 -- Season 3 Explorer 1/8
 local UPGRADE_SEASON_INFO = {
     [0] = { -- Default Stones
         currency_id = 3008,
     },
     [1] = { -- Veteran Crests
-        achievement_id = 40942,
-        currency_id = 3107,
+        achievement_id = 41886,
+        currency_id = 3284,
     },
     [2] = { -- Champion Crests
-        achievement_id = 40943,
-        currency_id = 3108,
+        achievement_id = 41887,
+        currency_id = 3286,
     },
     [3] = { -- Hero Crests
-        achievement_id = 40944,
-        currency_id = 3109,
+        achievement_id = 41888,
+        currency_id = 3288,
     },
     [4] = { -- Myth Crests
-        achievement_id = 40945,
-        currency_id = 3110,
+        achievement_id = 41892,
+        currency_id = 3290,
     },
 }
 local UPGRADE_WARBAND_CREST_DISCOUNT = (1 / 3)
@@ -128,6 +128,9 @@ difficulty_names({
 
 -- Table containing mappings of the localized upgrade track names to the relevant indices.   The values are always
 -- sequentially incremented by the passed table order (e.g. VETERAN = 3).
+-- https://wago.tools/db2/SharedString
+-- Explorer: 970 Adventurer: 971 Veteran: 972 Champion: 973 Hero: 974 Myth: 978
+-- C_Item.GetItemUpgradeInfo(item_link), trackStringID
 local upgrade_mapping = setmetatable({}, {
     __call = function(self, upgrade_tracks)
         for index, upgrade_track_name in ipairs(upgrade_tracks) do
@@ -600,6 +603,7 @@ local function build_item_level_track(item_level, upgrade_track, upgrade_level, 
 end
 
 -- Helper function to needily iterate over the tooltip or item link lines.
+-- TODO: Use the helpful tooltip line type identifiers for the upgrade information added in 11.1.5: https://warcraft.wiki.gg/wiki/API_C_TooltipInfo.GetItemByID
 local function get_upgrade_information(tooltip_lines)
     local upgrade_track, upgrade_level, max_upgrade_level
 
