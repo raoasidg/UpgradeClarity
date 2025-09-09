@@ -1,4 +1,4 @@
-## Interface: 110200
+## Interface: 
 ## Version: 2.4.5
 ## Title: UpgradeClarity
 ## Author: raoasidg
