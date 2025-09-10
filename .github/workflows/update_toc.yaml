@@ -15,7 +15,7 @@ jobs:
         uses: actions/checkout@v4
       -
         name: Update TOC
-        uses: p3lim/toc-interface-updater@v3
+        uses: p3lim/toc-interface-updater@v4
         with:
           flavor: retail
       -
