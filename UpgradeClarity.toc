@@ -15,6 +15,7 @@
 ## Category-zhCN: 用户界面
 ## Category-zhTW: 使用者介面
 ## Notes: Adds additional upgrade track details to item tooltips.
+## Notes-ruRU: Добавляет дополнительную информацию в подсказку об улучшениях предметов.
 
 Localization/Init.lua
 Localization/locale.deDE.lua
